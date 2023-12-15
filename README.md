@@ -1,4 +1,4 @@
-rtquicR package usage
+rtquicR
 ================
 Jessy Slota
 2023-10-19
