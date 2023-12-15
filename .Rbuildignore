@@ -1,2 +1,6 @@
 ^rtquicR\.Rproj$
 ^\.Rproj\.user$
+^LICENSE.txt
+^README.md
+^rtquicR-package-usage.html
+^analysis_script_v3.R
