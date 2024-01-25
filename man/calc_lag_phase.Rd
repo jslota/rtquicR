@@ -9,6 +9,9 @@ calc_lag_phase(
   sample_info,
   cutoff,
   thresh_method = "StdDev",
+  n_StdDevs = 10,
+  mean_FC = 2,
+  proportion_max = 0.1,
   threshold,
   thresh_calc_range = c(1:4)
 )
@@ -20,9 +23,15 @@ calc_lag_phase(
 
 \item{cutoff}{The time cutoff in hours that will serve as the max time to reach threshold fluorescence}
 
-\item{thresh_method}{The method for calculating threshold fluorescence. Default is "StdDev" (based on standard deviation). May also use "2xMean" (2xmean(fluourescence)), "Max" (10\% of max fluorescence) or "Manual" (manually specify a number).}
+\item{thresh_method}{The method for calculating threshold fluorescence. Default is "StdDev" (based on standard deviation). May also use "Mean" (2xmean(fluourescence)), "Max" (10\% of max fluorescence) or "Manual" (manually specify a number).}
 
-\item{threshold}{Numerical value to be used as threshold. Only applies when thresh_method = "Manual"}
+\item{n_StdDevs}{Only applies when thresh_method = "StdDev"; The number of standard deviations above baseline for thresholding (10 by default).}
+
+\item{mean_FC}{Only applies when thresh_method = "Mean"; The fold-change above the baseline for thresholding (2 by default).}
+
+\item{proportion_max}{Only applies when thresh_method = "Max"; The proportion of Max fluorescence for thresholding (0.1 by default).}
+
+\item{threshold}{Only applies when thresh_method = "Manual". Numerical value to be used as threshold.}
 
 \item{thresh_calc_range}{Range of cycle numbers to be used as the basis for calculating threshold. By default thresh_calc_range = c(1:4).}
 }
@@ -33,7 +42,7 @@ Outputs a matrix with the 1/lag values for each well with matching sample info d
 calculates the inverse lag phase for each well of the QuIC plate (AKA amyloid formation rate)
 }
 \examples{
-lag_res <- calc_lag_phase(res, samples, 40)
-lag_res <- calc_lag_phase(res, samples, 40, thresh_method = "2xMean", thresh_calc_range = c(13:16))
-lag_res <- calc_lag_phase(res, samples, 40, thresh_method = "Manual", threshold=15000)
+\dontrun{lag_data <- calc_lag_phase(res, samples, 40)}
+\dontrun{lag_data <- calc_lag_phase(res, samples, 40, thresh_method = "2xMean", thresh_calc_range = c(13:16))}
+\dontrun{lag_data <- calc_lag_phase(res, samples, 40, thresh_method = "Manual", threshold=15000)}
 }

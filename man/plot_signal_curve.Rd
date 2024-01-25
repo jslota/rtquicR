@@ -13,5 +13,5 @@ plot_signal_curve(plot_data)
 makes a generic plot with ggplot from the formatted signal curve plot data
 }
 \examples{
-plot_signal_curve(plot_data)
+\dontrun{plot_signal_curve(plot_data)}
 }

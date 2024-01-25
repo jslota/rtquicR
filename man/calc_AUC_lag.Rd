@@ -16,5 +16,5 @@ Outputs AUC lag-phase-curve values for each sample with matching sample info
 Calculates lag phase AUC for each sample from the lag phase data. Converts dilution to -log10(dilution) for AUC calculation
 }
 \examples{
-auc_res <- calc_AUC(lag_data)
+\dontrun{auc_res <- calc_AUC_lag(lag_data)}
 }

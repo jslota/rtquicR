@@ -16,5 +16,5 @@ Outputs AUC values from signal curves for each well with matching sample info
 Calculates lag phase AUC for each well from the signal curve.
 }
 \examples{
-auc_res <- calc_AUC(sig_data)
+\dontrun{auc_res <- calc_AUC_sig(sig_data)}
 }

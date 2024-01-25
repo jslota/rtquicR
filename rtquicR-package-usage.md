@@ -122,10 +122,22 @@ function.
 ``` r
 library(rtquicR)
 library(readxl)
+```
+
+    ## Warning: package 'readxl' was built under R version 4.3.2
+
+``` r
 library(ggplot2)
+```
+
+    ## Warning: package 'ggplot2' was built under R version 4.3.2
+
+``` r
 library(RColorBrewer)
 library(dplyr)
 ```
+
+    ## Warning: package 'dplyr' was built under R version 4.3.2
 
     ## 
     ## Attaching package: 'dplyr'
@@ -252,7 +264,8 @@ crucial for proper analysis.
   - Distinguishes real biological samples from technical controls.
   - Data from technical controls are filtered out from certain analysis
     steps.
-  - Use “Smpl” for samples and “Ctrl” for technical controls.
+  - Use “Smpl” for samples “Ctrl” for technical controls, and “Empty”
+    for empty wells.
 
 ### Sample meta-data columns (optional)
 
@@ -566,9 +579,17 @@ There are four methods for calculating the threshold:
 
 - **“StdDev”:** threshold = 10x standard deviation(baseline) +
   mean(baseline)
-- **“2xMean”:** theshold = 2xmean(baseline)
-- **“Max”:** threshold = 10% of maximum fluorescence value
+  - Use `n_StdDevs` to change the number of standard deviations,
+    e.g. `n_StdDevs = 5`
+- **“Mean”:** threshold = 2xmean(baseline)
+  - Use `mean_FC` to change the number of fold-changes above the
+    baseline, e.g. `mean_FC = 3`
+- **“Max”:** threshold = 0.1x(maximum fluorescence) (10%) value
+  - Use `proportion_max` to change the proportion of max fluorescence,
+    e.g. `proportion_max = 0.2`
 - **“Manual”:** threshold = a manually specified a number
+- Use `thresold` to manually specify the threshold value,
+  e.g. `threshold = 15000`
 
 Cycle numbers can also be specified via “thresh_calc_range”. These
 cycles will serve as the “baseline” for calculating the threshold.
@@ -578,7 +599,8 @@ cycles will serve as the “baseline” for calculating the threshold.
   lag_data <- calc_lag_phase(data = raw.dt,
                              sample_info = layout.dt,
                              cutoff = 40, # Max hours cut-off for lag-phase calculation
-                             thresh_method = "StdDev", # Method for calculating threshold: "StdDev", 2xMean", "Max", or "Manual"
+                             thresh_method = "StdDev", # Method for calculating threshold: "StdDev", Mean", "Max", or "Manual"
+                             n_StdDevs = 10, # 10 standard deviations for threshold calculation
                              thresh_calc_range = c(1:4)) # Cycle numbers to use for threshold calculation
   head(lag_data)
 ```
@@ -735,7 +757,6 @@ library(ggplot2)
 library(RColorBrewer)
 library(dplyr)
 
-
 #Files to be analyzed
 layout_files <- Sys.glob("raw data/*Layout.xlsx")
 results_files <- Sys.glob("raw data/*Results.xlsx")
@@ -757,14 +778,19 @@ for (i in 1:length(layout_files)) {
                            unnecessary_columns = c(2,3) #non data columns in excel sheet
   )
   ##################Specify parameters here#######################
-  
+  #Add plate number to well IDs
   colnames(res) <- paste0("P", plate, "-", colnames(res))
-  #Add to main dataset
-  results_data[[paste("P",plate, sep = "-")]] <- res
   #load and format plate layout data
   samples <- read_excel(layout_files[i])
   samples$Well <- paste0("P", plate, "-", samples$Well)
+  #Remove empty wells
+  if(any(samples$Smpl_Ctrl=="Empty")) {
+    empty <- samples %>% filter(Smpl_Ctrl=="Empty") %>% pull(Well)
+    samples <- samples %>% filter(!Well %in% empty)
+    res <- res[,-which(colnames(res) %in% empty)]
+  }
   #add to main dataset
+  results_data[[paste("P",plate, sep = "-")]] <- res
   layout_data[[paste("P",plate, sep = "-")]] <- samples
   #remove temp datasets
   rm(res, samples, plate)
@@ -893,7 +919,8 @@ for (i in names(results_data)) {
   lag_data <- calc_lag_phase(data = results_data[[i]],
                              sample_info = layout_data[[i]],
                              cutoff = 40, # Max hours cut-off for lag-phase calculation
-                             thresh_method = "StdDev", #Method for calculating threshold: "StdDev", 2xMean", "Max", or "Manual"
+                             thresh_method = "StdDev", #Method for calculating threshold: "StdDev", "Mean", "Max", or "Manual"
+                             n_StdDevs = 10, # Specify number of standard deviations above baseline for threshold
                              thresh_calc_range = c(1:4)) #Cycle numbers to use for threshold calculation
   ##################Specify parameters here#######################
   
@@ -937,6 +964,7 @@ for (i in names(results_data)) {
 if (dir.exists("results/")==FALSE) { dir.create("results/") }
 write.csv(sig_dt, "results/signal_curve_results.csv", row.names = FALSE)
 lag_dat <- do.call(rbind, full_data)
+lag_dat <- lag_dat %>% arrange(Sample, desc(Dilution))
 write.csv(lag_dat, "results/lag_phase_results.csv", row.names = FALSE)
 
 #AUC of signal curves
@@ -953,7 +981,7 @@ write.csv(mpr_res, "results/mpr_results.csv", row.names = FALSE)
 sd50_res <- lag_dat %>% filter(Smpl_Ctrl=="Smpl")
 ##################Specify parameters here#######################
 sd50_res <- calc_SD50(lag_data = sd50_res,
-                      starting_dilution = NULL, #Starting dilution to be used for sd50 calculation
+                      starting_dilution = 5e-08, #Starting dilution to be used for sd50 calculation
                       positivity_threshold = 0.75) #The first dilution must have this proportion of positive wells for positive samples
 ##################Specify parameters here#######################
 write.csv(sd50_res, "results/sd50_results.csv", row.names = FALSE)

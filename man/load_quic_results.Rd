@@ -30,6 +30,6 @@ Properly formatted matrix of QuIC data
 Takes raw data and formats it for further analysis
 }
 \examples{
-load_quic_results("raw data/quic_results.xlsx")
-load_quic_results("raw data/quic_results.xlsx", filetype="raw_table", excel_sheet="All Cycles", rows_to_skip = 12, unnecessary_columns = c(2,3))
+\dontrun{load_quic_results("raw data/quic_results.xlsx")}
+\dontrun{load_quic_results("raw data/quic_results.xlsx", filetype="raw_table", excel_sheet="All Cycles", rows_to_skip = 12, unnecessary_columns = c(2,3))}
 }

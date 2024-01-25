@@ -13,5 +13,5 @@ plot_lag_phase(lag_data)
 Makes a generic plot of lag phase data for each QuIC plate
 }
 \examples{
-plot_lag_phase(lag_data)
+\dontrun{plot_lag_phase(lag_data)}
 }

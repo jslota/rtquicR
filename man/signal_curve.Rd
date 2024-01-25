@@ -27,6 +27,6 @@ Formatted matrix of fluorescence for each well with sample info for signal curve
 Takes matrix of QuIC fluorescence values and formats it with sample info to plot signal against time with ggplot
 }
 \examples{
-sig_res <- signal_curve(QuIC_res, samples, normalize = "max_RFU_per_plate")
-sig_res <- signal_curve(QuIC_res, samples, normalize = "baseline_RFU_per_well", baseline_cycles = c(13:16))
+\dontrun{sig_res <- signal_curve(QuIC_res, samples, normalize = "max_RFU_per_plate")}
+\dontrun{sig_res <- signal_curve(QuIC_res, samples, normalize = "baseline_RFU_per_well", baseline_cycles = c(13:16))}
 }

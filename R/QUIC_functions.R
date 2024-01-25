@@ -32,10 +32,10 @@ convert_time_values <- function(QuIC_data) {
 #' @param unnecessary_columns (file_type = "raw_table" ONLY) The column number(s) of any unnecessary columns in the excel sheet. The only columns should be the Well ID, and individual reads.
 #' @return Properly formatted matrix of QuIC data
 #' @examples
-#' load_quic_results("raw data/quic_results.xlsx")
-#' load_quic_results("raw data/quic_results.xlsx", filetype="raw_table", excel_sheet="All Cycles", rows_to_skip = 12, unnecessary_columns = c(2,3))
-#' @import dplyr
-#' @import readxl
+#' \dontrun{load_quic_results("raw data/quic_results.xlsx")}
+#' \dontrun{load_quic_results("raw data/quic_results.xlsx", filetype="raw_table", excel_sheet="All Cycles", rows_to_skip = 12, unnecessary_columns = c(2,3))}
+#' @importFrom dplyr mutate
+#' @importFrom readxl read_excel
 #' @export
 load_quic_results <- function(input_file, file_type = "clean_table", excel_sheet = NULL, rows_to_skip = NULL, unnecessary_columns = NULL) {
 
@@ -116,9 +116,9 @@ load_quic_results <- function(input_file, file_type = "clean_table", excel_sheet
 #' @param baseline_cycles Must be set only when normalize="baseline_RFU_per_well". Cycles used for baseline calculation. e.g. baseline_cycles=c(13:16)
 #' @return Formatted matrix of fluorescence for each well with sample info for signal curve plotting
 #' @examples
-#' sig_res <- signal_curve(QuIC_res, samples, normalize = "max_RFU_per_plate")
-#' sig_res <- signal_curve(QuIC_res, samples, normalize = "baseline_RFU_per_well", baseline_cycles = c(13:16))
-#' @import reshape2
+#' \dontrun{sig_res <- signal_curve(QuIC_res, samples, normalize = "max_RFU_per_plate")}
+#' \dontrun{sig_res <- signal_curve(QuIC_res, samples, normalize = "baseline_RFU_per_well", baseline_cycles = c(13:16))}
+#' @importFrom reshape2 melt
 #' @export
 signal_curve <- function(plot_data, plot_samples, normalize = "none", baseline_cycles = NULL) {
 
@@ -159,8 +159,8 @@ signal_curve <- function(plot_data, plot_samples, normalize = "none", baseline_c
 #'
 #' @param plot_data output of 'signal_curve()' function
 #' @examples
-#' plot_signal_curve(plot_data)
-#' @import RColorBrewer
+#' \dontrun{plot_signal_curve(plot_data)}
+#' @importFrom RColorBrewer brewer.pal
 #' @import ggplot2
 #' @export
 plot_signal_curve <- function(plot_data) {
@@ -188,8 +188,8 @@ plot_signal_curve <- function(plot_data) {
 #' calculate max-point fluorescence ratios (MPR)
 #'
 #' @param data formatted RT-QuIC fluorescence data. Output of 'signal_curve'
-#' #' @examples
-#' mpr_res <- calc_mpr(signal_data)
+#' @examples
+#' \dontrun{mpr_res <- calc_mpr(signal_data)}
 #' @return Outputs a matrix with the MPR values for each well with matching sample info data
 #' @export
 calc_mpr <- function(data) {
@@ -217,16 +217,21 @@ calc_mpr <- function(data) {
 #' @param data formatted RT-QuIC fluorescence data. Output of 'load_quic_results()'
 #' @param sample_info Matrix that contains matching sample information for each well in the matching QuIC plate
 #' @param cutoff The time cutoff in hours that will serve as the max time to reach threshold fluorescence
-#' @param thresh_method The method for calculating threshold fluorescence. Default is "StdDev" (based on standard deviation). May also use "2xMean" (2xmean(fluourescence)), "Max" (10% of max fluorescence) or "Manual" (manually specify a number).
-#' @param threshold Numerical value to be used as threshold. Only applies when thresh_method = "Manual"
+#' @param thresh_method The method for calculating threshold fluorescence. Default is "StdDev" (based on standard deviation). May also use "Mean" (2xmean(fluourescence)), "Max" (10% of max fluorescence) or "Manual" (manually specify a number).
+#' @param n_StdDevs Only applies when thresh_method = "StdDev"; The number of standard deviations above baseline for thresholding (10 by default).
+#' @param mean_FC Only applies when thresh_method = "Mean"; The fold-change above the baseline for thresholding (2 by default).
+#' @param proportion_max Only applies when thresh_method = "Max"; The proportion of Max fluorescence for thresholding (0.1 by default).
+#' @param threshold Only applies when thresh_method = "Manual". Numerical value to be used as threshold. 
 #' @param thresh_calc_range Range of cycle numbers to be used as the basis for calculating threshold. By default thresh_calc_range = c(1:4).
 #' @examples
-#' lag_res <- calc_lag_phase(res, samples, 40)
-#' lag_res <- calc_lag_phase(res, samples, 40, thresh_method = "2xMean", thresh_calc_range = c(13:16))
-#' lag_res <- calc_lag_phase(res, samples, 40, thresh_method = "Manual", threshold=15000)
+#' \dontrun{lag_data <- calc_lag_phase(res, samples, 40)}
+#' \dontrun{lag_data <- calc_lag_phase(res, samples, 40, thresh_method = "2xMean", thresh_calc_range = c(13:16))}
+#' \dontrun{lag_data <- calc_lag_phase(res, samples, 40, thresh_method = "Manual", threshold=15000)}
 #' @return Outputs a matrix with the 1/lag values for each well with matching sample info data
+#' @importFrom stats sd
+#' @importFrom stats median
 #' @export
-calc_lag_phase <- function(data, sample_info, cutoff, thresh_method = "StdDev", threshold, thresh_calc_range = c(1:4)) {
+calc_lag_phase <- function(data, sample_info, cutoff, thresh_method = "StdDev", n_StdDevs=10, mean_FC=2, proportion_max=0.1, threshold, thresh_calc_range = c(1:4)) {
 
   if ((identical(colnames(data),sample_info$Well)==FALSE)) {
     stop("The files '", deparse(substitute(data)), "' and '", deparse(substitute(sample_info)), "' are not formated correctly. Must first run 'load_quic_results()' to generate '",
@@ -247,24 +252,24 @@ calc_lag_phase <- function(data, sample_info, cutoff, thresh_method = "StdDev", 
 
   if(thresh_method == "StdDev") {
     #threshold = mean(negative controls) + 10 standard deviation
-    thresh <- as.numeric(mean(rowMeans(data)[thresh_calc_range]) + 10*mean(apply(data, 1, sd)[thresh_calc_range]))
-  } else if(thresh_method == "2xMean") {
-    thresh <- as.numeric(2*mean(rowMeans(data)[thresh_calc_range]))
+    thresh <- as.numeric(mean(rowMeans(data)[thresh_calc_range]) + n_StdDevs*mean(apply(data, 1, stats::sd)[thresh_calc_range]))
+  } else if(thresh_method == "Mean") {
+    thresh <- as.numeric(mean_FC*mean(rowMeans(data)[thresh_calc_range]))
   } else if(thresh_method == "Max") {
-    thresh <- as.numeric(mean(rowMeans(data)[thresh_calc_range]) + 0.1*max(data))
+    thresh <- as.numeric(mean(rowMeans(data)[thresh_calc_range]) + proportion_max*max(data))
   } else if(thresh_method == "Manual") {
     if (is.numeric(threshold)==FALSE || threshold < 0 || threshold > 500000) {
       stop("Must specify a numeric value for 'thresold' between 0 and 500,000 when thresh_method='Manual'", call. = FALSE)
     }
     thresh <- threshold
   } else  {
-    stop("Invalid value for 'thresh_method', valid values are 'StdDev', '2xMean', 'Max', and 'Manual'", call. = FALSE)
+    stop("Invalid value for 'thresh_method', valid values are 'StdDev', 'Mean', 'Max', and 'Manual'", call. = FALSE)
   }
 
   #outlier detection
   for (i in thresh_calc_range) {
-    upper <- median(as.numeric(data[i,])) + 4*sd(data[i,])
-    lower <- median(as.numeric(data[i,])) - 4*sd(data[i,])
+    upper <- stats::median(as.numeric(data[i,])) + 4*stats::sd(data[i,])
+    lower <- stats::median(as.numeric(data[i,])) - 4*stats::sd(data[i,])
     for (j in colnames(data)) {
       if(data[i,j] > upper | data[i,j] < lower) {
         print(paste0("Well ", j, " might be an outlier"))
@@ -303,8 +308,8 @@ calc_lag_phase <- function(data, sample_info, cutoff, thresh_method = "StdDev", 
 #'
 #' @param lag_data Output of calc_lag_phase() function
 #' @examples
-#' plot_lag_phase(lag_data)
-#' @import RColorBrewer
+#' \dontrun{plot_lag_phase(lag_data)}
+#' @importFrom RColorBrewer brewer.pal
 #' @import ggplot2
 #' @export
 plot_lag_phase <- function(lag_data) {
@@ -342,8 +347,8 @@ plot_lag_phase <- function(lag_data) {
 #' @param positivity_threshold The proportion of positive wells in the first dilution must be above this threshold for a sample to be considered "positive". 0.75 by default
 #' @return Outputs SD50 values, standard error, and 95% confidence interval for each sample with matching sample info. Samples deemed to be "negative" are returned with an SD50 value equivalent to 1 dilution lower than the minimum dilution.
 #' @examples
-#' sd50_res <- calc_SD50(lag_data)
-#' sd50_res <- calc_SD50(lag_data, starting_dilution=1e-04)
+#' \dontrun{sd50_res <- calc_SD50(lag_data)}
+#' \dontrun{sd50_res <- calc_SD50(lag_data, starting_dilution=1e-04)}
 #' @export
 calc_SD50 <- function(lag_data, starting_dilution = NULL, positivity_threshold = 0.75) {
 
@@ -361,7 +366,7 @@ calc_SD50 <- function(lag_data, starting_dilution = NULL, positivity_threshold =
     } else if (starting_dilution < 0) {
       stop("Starting dilution must be less than one and greater than 0, e.g. 1e-03, 1e-04, 1e-05...")
     }
-    lag_data <- dplyr::filter(lag_data, Dilution <= starting_dilution)
+    lag_data <- lag_data[lag_data$Dilution <= starting_dilution,]
   }
 
   #setup output data frame
@@ -474,8 +479,9 @@ calc_SD50 <- function(lag_data, starting_dilution = NULL, positivity_threshold =
 #' @param lag_data Output of calc_lag_phase() function
 #' @return Outputs AUC lag-phase-curve values for each sample with matching sample info
 #' @examples
-#' auc_res <- calc_AUC(lag_data)
-#' @import pracma
+#' \dontrun{auc_res <- calc_AUC_lag(lag_data)}
+#' @importFrom pracma trapz
+#' @importFrom stats aggregate
 #' @export
 calc_AUC_lag <- function(lag_data) {
   if (identical(colnames(lag_data)[1:4],c("Well", "lag_time", "Sample","Dilution"))==FALSE) {
@@ -484,7 +490,7 @@ calc_AUC_lag <- function(lag_data) {
   per_sample_data <- lag_data
   per_sample_data <- per_sample_data[per_sample_data$lag_time != Inf,]
   per_sample_data$Dilution <- -log10(per_sample_data$Dilution)
-  per_sample_data <- aggregate(lag_time ~ Dilution+Sample, per_sample_data, mean)
+  per_sample_data <- stats::aggregate(lag_time ~ Dilution+Sample, per_sample_data, mean)
 
   #Make dataframe for AUC results
   AUC_res <- lag_data[,-c(1,2,4)]
@@ -508,8 +514,8 @@ calc_AUC_lag <- function(lag_data) {
 #' @param sig_data Output of signal_curve() function
 #' @return Outputs AUC values from signal curves for each well with matching sample info
 #' @examples
-#' auc_res <- calc_AUC(sig_data)
-#' @import pracma
+#' \dontrun{auc_res <- calc_AUC_sig(sig_data)}
+#' @importFrom pracma trapz
 #' @export
 calc_AUC_sig <- function(sig_data) {
   if (identical(colnames(sig_data)[1:5],c("Well","Time","Signal","Sample","Dilution"))==FALSE) {

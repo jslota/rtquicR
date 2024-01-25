@@ -22,6 +22,6 @@ positive for the function to return SD50 measurements (This serves as the limit 
 Otherwise returns the maximum possible value below the limit of detection.
 }
 \examples{
-sd50_res <- calc_SD50(lag_data)
-sd50_res <- calc_SD50(lag_data, starting_dilution=1e-04)
+\dontrun{sd50_res <- calc_SD50(lag_data)}
+\dontrun{sd50_res <- calc_SD50(lag_data, starting_dilution=1e-04)}
 }

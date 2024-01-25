@@ -7,13 +7,14 @@
 calc_mpr(data)
 }
 \arguments{
-\item{data}{formatted RT-QuIC fluorescence data. Output of 'signal_curve'
-#' @examples
-mpr_res <- calc_mpr(signal_data)}
+\item{data}{formatted RT-QuIC fluorescence data. Output of 'signal_curve'}
 }
 \value{
 Outputs a matrix with the MPR values for each well with matching sample info data
 }
 \description{
 calculate max-point fluorescence ratios (MPR)
+}
+\examples{
+\dontrun{mpr_res <- calc_mpr(signal_data)}
 }
