@@ -387,7 +387,7 @@ calc_SD50 <- function(lag_data, starting_dilution = NULL, positivity_threshold =
     tmp <- lag_data[lag_data$Sample == i,]
 
     #Identify d; d=difference between dilutions in log10 scale (e.g. d=1 for 10-fold dilution series)
-    d <- unique(diff(-log10(unique(tmp[order(tmp$Dilution, decreasing = TRUE),]$Dilution))))
+    d <- unique(round(diff(-log10(unique(sd50_res[order(sd50_res$Dilution, decreasing = TRUE),]$Dilution))),3))
     if (length(d) > 1) {
       stop("Please check dilution series... dilutions must be at regular intervals, e.g. 1e-03, 1e-04, 1e-05..")
     }
