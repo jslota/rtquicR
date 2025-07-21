@@ -5,21 +5,18 @@
 \title{calculate 1/lag phase}
 \usage{
 calc_lag_phase(
-  data,
-  sample_info,
+  signal_data,
   cutoff,
   thresh_method = "StdDev",
   n_StdDevs = 10,
   mean_FC = 2,
   proportion_max = 0.1,
   threshold,
-  thresh_calc_range = c(1:4)
+  thresh_calc_range = c(0, 1)
 )
 }
 \arguments{
-\item{data}{formatted RT-QuIC fluorescence data. Output of 'load_quic_results()'}
-
-\item{sample_info}{Matrix that contains matching sample information for each well in the matching QuIC plate}
+\item{signal_data}{output of 'signal_curve()' function}
 
 \item{cutoff}{The time cutoff in hours that will serve as the max time to reach threshold fluorescence}
 
@@ -33,7 +30,7 @@ calc_lag_phase(
 
 \item{threshold}{Only applies when thresh_method = "Manual". Numerical value to be used as threshold.}
 
-\item{thresh_calc_range}{Range of cycle numbers to be used as the basis for calculating threshold. By default thresh_calc_range = c(1:4).}
+\item{thresh_calc_range}{Range in hours to be used as the basis for calculating threshold. By default thresh_calc_range = c(0,1).}
 }
 \value{
 Outputs a matrix with the 1/lag values for each well with matching sample info data
@@ -42,7 +39,8 @@ Outputs a matrix with the 1/lag values for each well with matching sample info d
 calculates the inverse lag phase for each well of the QuIC plate (AKA amyloid formation rate)
 }
 \examples{
-\dontrun{lag_data <- calc_lag_phase(res, samples, 40)}
-\dontrun{lag_data <- calc_lag_phase(res, samples, 40, thresh_method = "2xMean", thresh_calc_range = c(13:16))}
-\dontrun{lag_data <- calc_lag_phase(res, samples, 40, thresh_method = "Manual", threshold=15000)}
+\dontrun{lag_data <- calc_lag_phase(signal_data, 40)}
+\dontrun{lag_data <- calc_lag_phase(signal_data, 40, thresh_method = "2xMean", thresh_calc_range = c(13:16))}
+\dontrun{lag_data <- calc_lag_phase(signal_data, 40, thresh_method = "Manual", threshold=15000)}
+\dontrun{lag_data <- calc_lag_phase(signal_data, 40, thresh_method = "MaxSlope")}
 }

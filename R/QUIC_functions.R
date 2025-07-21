@@ -114,14 +114,16 @@ load_quic_results <- function(input_file, file_type = "clean_table", excel_sheet
 #' @param plot_samples Matrix that contains matching sample information for each well in the matching QuIC plate
 #' @param normalize Normalize method for fluorescence signal. Either normalize="none", normalize="max_RFU_per_plate", or normalize="baseline_RFU_per_well"
 #' @param baseline_cycles Must be set only when normalize="baseline_RFU_per_well". Cycles used for baseline calculation. e.g. baseline_cycles=c(13:16)
+#' @param smooth Whether to smooth the fluorescence curves. Needed when calculating lag times from slopes.
 #' @return Formatted matrix of fluorescence for each well with sample info for signal curve plotting
 #' @examples
 #' \dontrun{sig_res <- signal_curve(QuIC_res, samples, normalize = "max_RFU_per_plate")}
-#' \dontrun{sig_res <- signal_curve(QuIC_res, samples, normalize = "baseline_RFU_per_well", baseline_cycles = c(13:16))}
+#' \dontrun{sig_res <- signal_curve(QuIC_res, samples, normalize = "baseline_RFU_per_well", baseline_cycles = c(13:16), smooth = TRUE)}
 #' @importFrom reshape2 melt
+#' @importFrom signal sgolayfilt
 #' @export
-signal_curve <- function(plot_data, plot_samples, normalize = "none", baseline_cycles = NULL) {
-
+signal_curve <- function(plot_data, plot_samples, normalize = "none", baseline_cycles = NULL, smooth = FALSE) {
+  
   if ((identical(colnames(plot_data),plot_samples$Well)==FALSE)) {
     stop("The files '", deparse(substitute(plot_data)), "' and '", deparse(substitute(plot_samples)), "' are not formated correctly. Must first run 'load_quic_results()' to generate '",
          deparse(substitute(plot_data)), "'. '", deparse(substitute(plot_samples)), "' must have a column named 'Well' with values that match colnames of '", deparse(substitute(plot_data)), "'.", call. = FALSE)
@@ -129,7 +131,7 @@ signal_curve <- function(plot_data, plot_samples, normalize = "none", baseline_c
   if (identical(colnames(plot_samples)[1:3], c("Well","Sample","Dilution"))==FALSE) {
     stop("The file '", deparse(substitute(plot_samples)), "' is not formated correctly. The first the columns must be 'Well', 'Sample', and 'Dilution'", call. = FALSE)
   }
-
+  
   if (normalize == "max_RFU_per_plate") {
     plot_data <- 100*(plot_data - min(plot_data))/(max(plot_data) - min(plot_data))
   } else  if (normalize == "baseline_RFU_per_well") {
@@ -139,8 +141,16 @@ signal_curve <- function(plot_data, plot_samples, normalize = "none", baseline_c
     for (i in colnames(plot_data)) {
       plot_data[,i] <- plot_data[,i]/mean(plot_data[baseline_cycles,i])
     }
-
+    
   }
+  
+  if (smooth == TRUE) {
+    for (i in colnames(plot_data)) {
+      plot_data[,i] <- signal::sgolayfilt(plot_data[,i], p = 3, n = 17)
+    }
+    
+  }
+  
   #format data for plotting
   plot_data$time <- rownames(plot_data)
   plot_data <- reshape2::melt(plot_data, id.vars = "time")
@@ -214,92 +224,103 @@ calc_mpr <- function(data) {
 #'
 #' calculates the inverse lag phase for each well of the QuIC plate (AKA amyloid formation rate)
 #'
-#' @param data formatted RT-QuIC fluorescence data. Output of 'load_quic_results()'
-#' @param sample_info Matrix that contains matching sample information for each well in the matching QuIC plate
+#' @param signal_data output of 'signal_curve()' function
 #' @param cutoff The time cutoff in hours that will serve as the max time to reach threshold fluorescence
 #' @param thresh_method The method for calculating threshold fluorescence. Default is "StdDev" (based on standard deviation). May also use "Mean" (2xmean(fluourescence)), "Max" (10% of max fluorescence) or "Manual" (manually specify a number).
 #' @param n_StdDevs Only applies when thresh_method = "StdDev"; The number of standard deviations above baseline for thresholding (10 by default).
 #' @param mean_FC Only applies when thresh_method = "Mean"; The fold-change above the baseline for thresholding (2 by default).
 #' @param proportion_max Only applies when thresh_method = "Max"; The proportion of Max fluorescence for thresholding (0.1 by default).
 #' @param threshold Only applies when thresh_method = "Manual". Numerical value to be used as threshold. 
-#' @param thresh_calc_range Range of cycle numbers to be used as the basis for calculating threshold. By default thresh_calc_range = c(1:4).
+#' @param thresh_calc_range Range in hours to be used as the basis for calculating threshold. By default thresh_calc_range = c(0,1).
 #' @examples
-#' \dontrun{lag_data <- calc_lag_phase(res, samples, 40)}
-#' \dontrun{lag_data <- calc_lag_phase(res, samples, 40, thresh_method = "2xMean", thresh_calc_range = c(13:16))}
-#' \dontrun{lag_data <- calc_lag_phase(res, samples, 40, thresh_method = "Manual", threshold=15000)}
+#' \dontrun{lag_data <- calc_lag_phase(signal_data, 40)}
+#' \dontrun{lag_data <- calc_lag_phase(signal_data, 40, thresh_method = "2xMean", thresh_calc_range = c(13:16))}
+#' \dontrun{lag_data <- calc_lag_phase(signal_data, 40, thresh_method = "Manual", threshold=15000)}
+#' \dontrun{lag_data <- calc_lag_phase(signal_data, 40, thresh_method = "MaxSlope")}
 #' @return Outputs a matrix with the 1/lag values for each well with matching sample info data
 #' @importFrom stats sd
 #' @importFrom stats median
+#' @importFrom dplyr filter
 #' @export
-calc_lag_phase <- function(data, sample_info, cutoff, thresh_method = "StdDev", n_StdDevs=10, mean_FC=2, proportion_max=0.1, threshold, thresh_calc_range = c(1:4)) {
-
-  if ((identical(colnames(data),sample_info$Well)==FALSE)) {
-    stop("The files '", deparse(substitute(data)), "' and '", deparse(substitute(sample_info)), "' are not formated correctly. Must first run 'load_quic_results()' to generate '",
-         deparse(substitute(data)), "'. '", deparse(substitute(sample_info)), "' must have a column named 'Well' with values that match colnames of '", deparse(substitute(data)), "'.", call. = FALSE)
+calc_lag_phase <- function(signal_data, cutoff, thresh_method = "StdDev", n_StdDevs=10, mean_FC=2, proportion_max=0.1, threshold, thresh_calc_range = c(0,1)) {
+  
+  # Validate input format
+  if (identical(colnames(signal_data)[1:3], c("Well","Time","Signal"))==FALSE) {
+    stop("The file '", deparse(substitute(data)), deparse(substitute(sample_info)), "' is not formated correctly. The first the columns must be 'Well', 'Time', and 'Signal'", call. = FALSE)
   }
-  if (is.numeric(as.matrix(data))==FALSE) {
-    stop("The file '", "' is not formatted correctly. Must only contain numeric values.")
-  }
-  if (identical(colnames(sample_info)[1:3], c("Well","Sample","Dilution"))==FALSE) {
-    stop("The file '", deparse(substitute(data)), deparse(substitute(sample_info)), "' is not formated correctly. The first the columns must be 'Well', 'Sample', and 'Dilution'", call. = FALSE)
-  }
-
-  #cutoff time
+  
+  # Validate cutoff time
   if (is.numeric(cutoff)==FALSE || cutoff < 0 ) {
-    stop("Invalid cycle cutoff. Must be numeric and > 0.", call. = FALSE)
+    stop("Invalid cycle cutoff time. Must be hours in numeric format and > 0.", call. = FALSE)
   }
-  data <- data[as.numeric(rownames(data)) < as.numeric(cutoff),]
-
-  if(thresh_method == "StdDev") {
-    #threshold = mean(negative controls) + 10 standard deviation
-    thresh <- as.numeric(mean(rowMeans(data)[thresh_calc_range]) + n_StdDevs*mean(apply(data, 1, stats::sd)[thresh_calc_range]))
-  } else if(thresh_method == "Mean") {
-    thresh <- as.numeric(mean_FC*mean(rowMeans(data)[thresh_calc_range]))
-  } else if(thresh_method == "Max") {
-    thresh <- as.numeric(mean(rowMeans(data)[thresh_calc_range]) + proportion_max*max(data))
-  } else if(thresh_method == "Manual") {
-    if (is.numeric(threshold)==FALSE || threshold < 0 || threshold > 500000) {
-      stop("Must specify a numeric value for 'thresold' between 0 and 500,000 when thresh_method='Manual'", call. = FALSE)
-    }
-    thresh <- threshold
-  } else  {
-    stop("Invalid value for 'thresh_method', valid values are 'StdDev', 'Mean', 'Max', and 'Manual'", call. = FALSE)
-  }
-
+  signal_data <- dplyr::filter(signal_data, Time < cutoff) # Filter by cutoff time
+  
+  # Baseline signal() used for threshold methods)
+  baseline_signal <- dplyr::filter(signal_data, Time >= thresh_calc_range[1], Time <= thresh_calc_range[2])$Signal
+  
+  # Compute threshold
+  thresh <- switch(thresh_method,
+                   "StdDev" = mean(baseline_signal) + n_StdDevs * sd(baseline_signal),
+                   "Mean"   = mean_FC * mean(baseline_signal),
+                   "Max"    = mean(baseline_signal) + proportion_max * max(signal_data$Signal),
+                   "Manual" = {
+                     if (!is.numeric(threshold) || threshold < 0 || threshold > 500000) {
+                       stop("threshold must be numeric and between 0 and 500000 for 'Manual' method.")
+                     }
+                     threshold
+                   },
+                   "MaxSlope" = NA,  # handled below
+                   stop("Invalid thresh_method. Must be one of: StdDev, Mean, Max, Manual, MaxSlope.")
+  )
+  
   #outlier detection
-  for (i in thresh_calc_range) {
-    upper <- stats::median(as.numeric(data[i,])) + 4*stats::sd(data[i,])
-    lower <- stats::median(as.numeric(data[i,])) - 4*stats::sd(data[i,])
-    for (j in colnames(data)) {
-      if(data[i,j] > upper | data[i,j] < lower) {
-        print(paste0("Well ", j, " might be an outlier"))
-      }
-    }
-
+  upper <- stats::median(baseline_signal) + 4*stats::sd(baseline_signal)
+  lower <- stats::median(baseline_signal) - 4*stats::sd(baseline_signal)
+  
+  outlier_wells <- dplyr::filter(signal_data, Time >= thresh_calc_range[1], Time <= thresh_calc_range[2])
+  outlier_wells <- dplyr::summarise(dplyr::group_by(outlier_wells, Well), bad = any(Signal < lower | Signal > upper))
+  outlier_wells <- dplyr::pull(dplyr::filter(outlier_wells, bad), Well)
+  
+  if (length(outlier_wells) > 0) {
+    message("Potential baseline outliers: ", paste(outlier_wells, collapse = ", "))
   }
-
-  #Remove cycles that were used for threshold calculation (in case of abnormally high baseline)
-  data <- data[max(thresh_calc_range):nrow(data),]
-
-  #make data frame to collect time-points
-  time_data <- data.frame(Well = colnames(data), lag_time = 0)
-
-  #get first time-point above threshold
-  for (i in 1:ncol(data)) {
-    if (is.null(rownames(data[data[,i] > thresh,])) == FALSE) {
-      time_data$lag_time[i] <- as.numeric(rownames(data[data[,i] > thresh,])[1])
-    } else  {
-      time_data$lag_time[i] <- NA
-    }
-  }
-  #1/lag time
-  time_data$lag_time <- 1/time_data$lag_time
-  #Set negative wells to 1/lag = 0
-  time_data[is.na(time_data$lag_time),]$lag_time <- 0
-  #get sample info
-  time_data <- merge.data.frame(time_data, sample_info, by = "Well")
-
-  return(time_data)
+  
+  # Remove cycles that were used for threshold calculation (in case of abnormally high baseline)
+  signal_data <- dplyr::filter(signal_data, Time > thresh_calc_range[2])
+  
+  lag_data <- dplyr::reframe(dplyr::group_by(signal_data, Well),
+                             lag_time = {
+                               sig <- Signal
+                               time <- Time
+                               
+                               if (thresh_method == "MaxSlope") {
+                                 d_sig <- diff(sig) / diff(time)
+                                 max_slope_idx <- which.max(d_sig)
+                                 
+                                 if (length(max_slope_idx) == 1 && d_sig[max_slope_idx] > 0.25) {
+                                   time[max_slope_idx]
+                                 } else {
+                                   NA_real_
+                                 }
+                               } else {
+                                 first_above <- which(sig > thresh)[1]
+                                 if (!is.na(first_above)) {
+                                   time[first_above]
+                                 } else {
+                                   NA_real_
+                                 }
+                               }
+                             }
+  )
+  
+  lag_data <- dplyr::mutate(lag_data,
+                            lag_time = ifelse(is.na(lag_time), 0, 1 / lag_time))
+  
+  # Join back metadata (non-time columns)
+  meta_cols <- setdiff(colnames(signal_data), c("Time", "Signal"))
+  lag_data <- dplyr::left_join(lag_data, unique(signal_data[meta_cols]), by = "Well")
+  
+  return(lag_data)
 }
 
 #' generic plot of lag phase data

@@ -8,7 +8,8 @@ signal_curve(
   plot_data,
   plot_samples,
   normalize = "none",
-  baseline_cycles = NULL
+  baseline_cycles = NULL,
+  smooth = FALSE
 )
 }
 \arguments{
@@ -19,6 +20,8 @@ signal_curve(
 \item{normalize}{Normalize method for fluorescence signal. Either normalize="none", normalize="max_RFU_per_plate", or normalize="baseline_RFU_per_well"}
 
 \item{baseline_cycles}{Must be set only when normalize="baseline_RFU_per_well". Cycles used for baseline calculation. e.g. baseline_cycles=c(13:16)}
+
+\item{smooth}{Whether to smooth the fluorescence curves. Needed when calculating lag times from slopes.}
 }
 \value{
 Formatted matrix of fluorescence for each well with sample info for signal curve plotting
@@ -28,5 +31,5 @@ Takes matrix of QuIC fluorescence values and formats it with sample info to plot
 }
 \examples{
 \dontrun{sig_res <- signal_curve(QuIC_res, samples, normalize = "max_RFU_per_plate")}
-\dontrun{sig_res <- signal_curve(QuIC_res, samples, normalize = "baseline_RFU_per_well", baseline_cycles = c(13:16))}
+\dontrun{sig_res <- signal_curve(QuIC_res, samples, normalize = "baseline_RFU_per_well", baseline_cycles = c(13:16), smooth = TRUE)}
 }
