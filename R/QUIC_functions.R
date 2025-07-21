@@ -226,7 +226,7 @@ calc_mpr <- function(data) {
 #'
 #' @param signal_data output of 'signal_curve()' function
 #' @param cutoff The time cutoff in hours that will serve as the max time to reach threshold fluorescence
-#' @param thresh_method The method for calculating threshold fluorescence. Default is "StdDev" (based on standard deviation). May also use "Mean" (2xmean(fluourescence)), "Max" (10% of max fluorescence) or "Manual" (manually specify a number).
+#' @param thresh_method The method for calculating threshold fluorescence. Default is "StdDev" (based on standard deviation). May also use "Mean" (2xmean(fluourescence)), "Max" (10% of max fluorescence), "Manual" (manually specify a number) or "MaxSlope" (based on curve slope instead of signal threshold).
 #' @param n_StdDevs Only applies when thresh_method = "StdDev"; The number of standard deviations above baseline for thresholding (10 by default).
 #' @param mean_FC Only applies when thresh_method = "Mean"; The fold-change above the baseline for thresholding (2 by default).
 #' @param proportion_max Only applies when thresh_method = "Max"; The proportion of Max fluorescence for thresholding (0.1 by default).
@@ -240,7 +240,7 @@ calc_mpr <- function(data) {
 #' @return Outputs a matrix with the 1/lag values for each well with matching sample info data
 #' @importFrom stats sd
 #' @importFrom stats median
-#' @importFrom dplyr filter
+#' @importFrom dplyr filter summarise group_by pull reframe mutate left_join
 #' @export
 calc_lag_phase <- function(signal_data, cutoff, thresh_method = "StdDev", n_StdDevs=10, mean_FC=2, proportion_max=0.1, threshold, thresh_calc_range = c(0,1)) {
   
