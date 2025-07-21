@@ -20,7 +20,7 @@ calc_lag_phase(
 
 \item{cutoff}{The time cutoff in hours that will serve as the max time to reach threshold fluorescence}
 
-\item{thresh_method}{The method for calculating threshold fluorescence. Default is "StdDev" (based on standard deviation). May also use "Mean" (2xmean(fluourescence)), "Max" (10\% of max fluorescence) or "Manual" (manually specify a number).}
+\item{thresh_method}{The method for calculating threshold fluorescence. Default is "StdDev" (based on standard deviation). May also use "Mean" (2xmean(fluourescence)), "Max" (10\% of max fluorescence), "Manual" (manually specify a number) or "MaxSlope" (based on curve slope instead of signal threshold).}
 
 \item{n_StdDevs}{Only applies when thresh_method = "StdDev"; The number of standard deviations above baseline for thresholding (10 by default).}
 
