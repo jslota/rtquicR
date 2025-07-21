@@ -5,21 +5,27 @@
 #'
 #' @param QuIC_data formatted QuIC results matrix with funky time values
 #' @return Matrix with proper numerical values for time in hours
+#' @importFrom stringr str_extract
 convert_time_values <- function(QuIC_data) {
-  QuIC_data$Time <- 0
-  for (i in rownames(QuIC_data)) {
-    if (length(strsplit(rownames(QuIC_data[i,]), " ")[[1]]) < 3) {
-      QuIC_data[i,]$Time <- as.numeric(strsplit(rownames(QuIC_data[i,]), " ")[[1]][1])
-    } else {
-      QuIC_data[i,]$Time <- as.numeric(strsplit(rownames(QuIC_data[i,]), " ")[[1]][1]) + as.numeric(strsplit(rownames(QuIC_data[i,]), " ")[[1]][3])/60
-    }
-
-  }
-  rownames(QuIC_data) <- QuIC_data$Time
-  rownames(QuIC_data)
-  QuIC_data <- QuIC_data[,colnames(QuIC_data) != "Time"]
+  time_str <- rownames(QuIC_data)
+  
+  # Extract hours and minutes using regex
+  hours <- as.numeric(stringr::str_extract(time_str, "\\d+(?=\\s*h)"))
+  minutes <- as.numeric(stringr::str_extract(time_str, "\\d+(?=\\s*min)"))
+  
+  # Replace NA with 0 where needed
+  hours[is.na(hours)] <- 0
+  minutes[is.na(minutes)] <- 0
+  
+  # Calculate time in hours
+  time_hours <- hours + minutes / 60
+  
+  # Add to the data and set as rownames
+  rownames(QuIC_data) <- time_hours
+  
   return(QuIC_data)
 }
+
 
 #' Load and format data frame
 #'
@@ -50,10 +56,10 @@ load_quic_results <- function(input_file, file_type = "clean_table", excel_sheet
       stop("The file '", input_file, "' is not formated as a clean table (First Column should be named 'Well')", call. = FALSE)
     }
   }  else if (file_type == "raw_table") {
-    if (is.null(rows_to_skip)==TRUE) {
+    if (is.null(rows_to_skip)) {
       stop("Please specify 'rows_to_skip' when using filetype='raw_table' (Hint, try 'rows_to_skip'=12)", call. = FALSE)
     }
-    if (is.null(unnecessary_columns)==TRUE) {
+    if (is.null(unnecessary_columns)) {
       stop("Please specify 'unnecessary_columns' when using filetype='raw_table' (Hint, try 'unnecessary_columns'=c(2,3))", call. = FALSE)
     }
     res <- readxl::read_excel(input_file,
@@ -65,20 +71,13 @@ load_quic_results <- function(input_file, file_type = "clean_table", excel_sheet
       stop("The file '", input_file, "' is not formated correctly. Check 'rows_to_skip' and 'unnecessary_columns' (First Column should be named 'Well')", call. = FALSE)
     }
   } else if (file_type == "raw_microplate") {
-    if (is.null(rows_to_skip)==TRUE) {
+    if (is.null(rows_to_skip)) {
       stop("Please specify 'rows_to_skip' when using filetype='raw_microplate' (Hint, try 'rows_to_skip'=12)", call. = FALSE)
     }
     res <- readxl::read_excel(input_file,
                               sheet = excel_sheet,
                               skip = rows_to_skip)
-    out <- data.frame(Well = c("A01", "A02", "A03", "A04", "A05", "A06", "A07", "A08", "A09", "A10", "A11", "A12",
-                               "B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08", "B09", "B10", "B11", "B12",
-                               "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12",
-                               "D01", "D02", "D03", "D04", "D05", "D06", "D07", "D08", "D09", "D10", "D11", "D12",
-                               "E01", "E02", "E03", "E04", "E05", "E06", "E07", "E08", "E09", "E10", "E11", "E12",
-                               "F01", "F02", "F03", "F04", "F05", "F06", "F07", "F08", "F09", "F10", "F11", "F12",
-                               "G01", "G02", "G03", "G04", "G05", "G06", "G07", "G08", "G09", "G10", "G11", "G12",
-                               "H01", "H02", "H03", "H04", "H05", "H06", "H07", "H08", "H09", "H10", "H11", "H12"),
+    out <- data.frame(Well = sprintf("%s%02d", rep(LETTERS[1:8], each = 12), 1:12), # A01 through H12
                       "0 h" = c(as.numeric(res[3,2:13]), as.numeric(res[4,2:13]), as.numeric(res[5,2:13]), as.numeric(res[6,2:13]),
                                 as.numeric(res[7,2:13]), as.numeric(res[8,2:13]), as.numeric(res[9,2:13]), as.numeric(res[10,2:13])),
                       check.names = FALSE
@@ -124,42 +123,48 @@ load_quic_results <- function(input_file, file_type = "clean_table", excel_sheet
 #' @export
 signal_curve <- function(plot_data, plot_samples, normalize = "none", baseline_cycles = NULL, smooth = FALSE) {
   
-  if ((identical(colnames(plot_data),plot_samples$Well)==FALSE)) {
-    stop("The files '", deparse(substitute(plot_data)), "' and '", deparse(substitute(plot_samples)), "' are not formated correctly. Must first run 'load_quic_results()' to generate '",
-         deparse(substitute(plot_data)), "'. '", deparse(substitute(plot_samples)), "' must have a column named 'Well' with values that match colnames of '", deparse(substitute(plot_data)), "'.", call. = FALSE)
-  }
-  if (identical(colnames(plot_samples)[1:3], c("Well","Sample","Dilution"))==FALSE) {
-    stop("The file '", deparse(substitute(plot_samples)), "' is not formated correctly. The first the columns must be 'Well', 'Sample', and 'Dilution'", call. = FALSE)
+  # Basic checks
+  if (!identical(colnames(plot_data), plot_samples$Well)) {
+    stop("Well names in plot_data and plot_samples$Well must match.")
   }
   
+  if (!identical(colnames(plot_samples)[1:3], c("Well", "Sample", "Dilution"))) {
+    stop("plot_samples must have columns: 'Well', 'Sample', and 'Dilution'.")
+  }
+  
+  # Normalization
   if (normalize == "max_RFU_per_plate") {
-    plot_data <- 100*(plot_data - min(plot_data))/(max(plot_data) - min(plot_data))
-  } else  if (normalize == "baseline_RFU_per_well") {
-    if (is.null(baseline_cycles) == TRUE) {
-      stop("You have selected normalize=baseline_RFU_per_plate, but have not provided baseline_cycles. Eg. baseline_cycles=c(13:16)")
-    }
-    for (i in colnames(plot_data)) {
-      plot_data[,i] <- plot_data[,i]/mean(plot_data[baseline_cycles,i])
+    plot_data <- 100 * (plot_data - min(plot_data)) / (max(plot_data) - min(plot_data))
+    
+  } else if (normalize == "baseline_RFU_per_well") {
+    if (is.null(baseline_cycles)) {
+      stop("normalize = 'baseline_RFU_per_well' requires 'baseline_cycles' (e.g., c(13:16)).")
     }
     
+    plot_data[] <- lapply(plot_data, function(col) col / mean(col[baseline_cycles]))
   }
   
-  if (smooth == TRUE) {
-    for (i in colnames(plot_data)) {
-      plot_data[,i] <- signal::sgolayfilt(plot_data[,i], p = 3, n = 17)
+  # Smoothing
+  if (smooth) {
+    if (nrow(plot_data) < 17) {
+      warning("Smoothing skipped: fewer than 17 timepoints.")
+    } else {
+      plot_data[] <- lapply(plot_data, function(col) signal::sgolayfilt(col, p = 3, n = 17))
     }
-    
   }
   
-  #format data for plotting
-  plot_data$time <- rownames(plot_data)
-  plot_data <- reshape2::melt(plot_data, id.vars = "time")
-  colnames(plot_data) <- c("Time", "Well", "Signal")
-  #convert time to numeric
-  plot_data$Time <- as.numeric(plot_data$Time)
-  ###add sample info
-  plot_data <- merge.data.frame(plot_data, plot_samples, by = "Well")
-  return(plot_data)
+  # Add time column and reshape
+  plot_data$Time <- as.numeric(rownames(plot_data))
+  plot_long <- reshape2::melt(plot_data, id.vars = "Time", variable.name = "Well", value.name = "Signal")
+  
+  # Ensure matching types before merging
+  plot_long$Well <- as.character(plot_long$Well)
+  plot_samples$Well <- as.character(plot_samples$Well)
+  
+  # Combine with sample metadata
+  merged <- merge(plot_long, plot_samples, by = "Well")
+  
+  return(merged)
 }
 
 
@@ -363,134 +368,130 @@ plot_lag_phase <- function(lag_data) {
 #' positive for the function to return SD50 measurements (This serves as the limit of detection).
 #' Otherwise returns the maximum possible value below the limit of detection.
 #'
-#' @param lag_data Output of calc_lag_phase() function
-#' @param starting_dilution The numeric value for the starting dilution used to calculate SD50. Useful if there is inhibition at higher sample concentrations.
-#' @param positivity_threshold The proportion of positive wells in the first dilution must be above this threshold for a sample to be considered "positive". 0.75 by default
-#' @return Outputs SD50 values, standard error, and 95% confidence interval for each sample with matching sample info. Samples deemed to be "negative" are returned with an SD50 value equivalent to 1 dilution lower than the minimum dilution.
+#' @param lag_data Output of `calc_lag_phase()` with columns: Well, lag_time, Sample, Dilution
+#' @param starting_dilution Optional numeric. Use only dilutions ≤ this value (e.g., for inhibition at high concentration)
+#' @param positivity_threshold Proportion of positive wells required in highest dilution. Default = 0.75
+#' @return Data frame with SD50 metrics and result interpretation
 #' @examples
 #' \dontrun{sd50_res <- calc_SD50(lag_data)}
 #' \dontrun{sd50_res <- calc_SD50(lag_data, starting_dilution=1e-04)}
+#' @importFrom dplyr case_when distinct mutate left_join
+#' @importFrom purrr map_dfr
 #' @export
 calc_SD50 <- function(lag_data, starting_dilution = NULL, positivity_threshold = 0.75) {
-
-  #Make sure correct input file was provided
-  if (identical(colnames(lag_data)[1:4],c("Well", "lag_time", "Sample","Dilution"))==FALSE) {
-    stop("The file '", deparse(substitute(lag_data)), "' is not formated correctly. First must run 'calc_lag_phase()'", call. = FALSE)
+  
+  # ---- Input checks ----
+  required_cols <- c("Well", "lag_time", "Sample", "Dilution")
+  if (!identical(colnames(lag_data)[1:4], required_cols)) {
+    stop("Input lag_data must have columns: Well, lag_time, Sample, Dilution")
   }
-
-  #Check for valid starting dilution, then remove less-dilute replicates
-  if (is.null(starting_dilution)==FALSE) {
-    if (is.numeric(starting_dilution)==FALSE) {
-      stop("starting_dilution must be a numerical value. e.g. 1e-04")
-    } else if (starting_dilution > 1) {
-      stop("Starting dilution must be less than one and greater than 0, e.g. 1e-03, 1e-04, 1e-05...")
-    } else if (starting_dilution < 0) {
-      stop("Starting dilution must be less than one and greater than 0, e.g. 1e-03, 1e-04, 1e-05...")
+  
+  if (!is.null(starting_dilution)) {
+    if (!is.numeric(starting_dilution) || starting_dilution <= 0 || starting_dilution >= 1) {
+      stop("starting_dilution must be a numeric value between 0 and 1, e.g. 1e-04")
     }
-    lag_data <- lag_data[lag_data$Dilution <= starting_dilution,]
+    lag_data <- lag_data[lag_data$Dilution <= starting_dilution, ]
   }
-
-  #setup output data frame
-  keep <- is.element(colnames(lag_data), c("Well", "lag_time", "Dilution")) == FALSE
-  sd50_res <- lag_data[,keep]
-  sd50_res <- unique(sd50_res)
-  rownames(sd50_res) <- sd50_res$Sample
-  sd50_res$log10_SD50 <- 0
-  sd50_res$SE <- 0
-  sd50_res$CI95_upper <- 0
-  sd50_res$CI95_lower <- 0
-  sd50_res$LOD_min <- 0
-  sd50_res$LOD_max <- 0
-  sd50_res$Result <- "positive"
-
-  #calculate SD50 for each sample
-  for (i in unique(lag_data$Sample)) {
-    tmp <- lag_data[lag_data$Sample == i,]
-
-    #Identify d; d=difference between dilutions in log10 scale (e.g. d=1 for 10-fold dilution series)
-    d <- unique(round(diff(-log10(unique(tmp[order(tmp$Dilution, decreasing = TRUE),]$Dilution))),3))
-    if (length(d) > 1) {
-      stop("Please check dilution series... dilutions must be at regular intervals, e.g. 1e-03, 1e-04, 1e-05..")
-    }
-
-    #Calculate x0 (lowest dilution to be 4/4 positive)
-    dilutions = unique(tmp$Dilution)
-    x0 = 0
-    for (j in 1:length(dilutions)) {
-      if(sum(tmp[tmp$Dilution == dilutions[j],]$lag_time > 0) == nrow(tmp[tmp$Dilution == dilutions[j],])) {
-        x0 <- -log10(dilutions[j])
-      }
-    }
-    if (x0 == 0) {
-      x0 <- -log10(10*max(dilutions))
-    }
-
-    #Remove false positives, need at least 3/4 first-dilution rxns to be positive
-    if (sum(tmp[tmp$Dilution == max(tmp$Dilution),]$lag_time > 0) < (positivity_threshold*nrow(tmp[tmp$Dilution == max(dilutions),]))) {
-      tmp$lag_time <- 0
-    }
-
-    #Calculate SD50; method 1
-    #ni <- nrow(tmp)/length(unique(tmp$Dilution)) #number of replicates per dilution
-    #Remove dilutions higher than x0
-    #tmp <- tmp[tmp$Dilution <= 1.01*10^(-x0),] #the 1.01 factor is just to make sure the x0 dilution is included
-    #ri <- sum(tmp$lag_time > 0) #total number of positive wells at X0 dilution and below
-    #sd50_res[i,]$log10_SD50 <- (x0 - d/2 + d*(ri/ni)) #Calculate SD50
-
-    #Calculate SD50; method 2
-    dilutions.p <- dilutions[dilutions <= 1.01*10^(-x0)] #get all dilutions above x0, including x0
-    p.sum <- numeric()
-    n <- numeric()
-    #p.se <- 0
-    for (j in dilutions.p) { #Get p for each dilution >= x0
-      p.tmp <- sum(tmp[tmp$Dilution==j,]$lag_time > 0)/nrow(tmp[tmp$Dilution==j,]) #Calculate proportion positive for this dilution
-      p.sum <- c(p.sum, p.tmp) #add to sum
-      n <- c(n, nrow(tmp[tmp$Dilution==j,]))
-      #p.se <- p.se + (p.tmp*(1-p.tmp)/(nrow(tmp[tmp$Dilution==j,])-1))
-    }
-
-    #"Smooth" p... only necessary for standard error calculation
-    if (length(p.sum) > 1) {
-      while (any(cummin(p.sum) != p.sum)) { # while p is non-monotonic
-        for (k in 2:length(p.sum)) { # starting from the second dilution and going up,
-          if (p.sum[k] > p.sum[k-1]) { # if the current one has higher p than the last one...
-            # select all dilutions below the current one that have lower p...
-            indices_to_average = c(which(1:length(p.sum) < k & p.sum < p.sum[k]), k)
-            # and average them all together with the current value.
-            p.sum[indices_to_average] = mean(p.sum[indices_to_average])
-          }
+  
+  # ---- Helper for monotonic smoothing ----
+  smooth_monotonic <- function(p_vec) {
+    while (any(cummin(p_vec) != p_vec)) {
+      for (k in 2:length(p_vec)) {
+        if (p_vec[k] > p_vec[k - 1]) {
+          idx <- which(1:length(p_vec) < k & p_vec < p_vec[k])
+          idx <- c(idx, k)
+          p_vec[idx] <- mean(p_vec[idx])
         }
       }
     }
-
-    p.se <- sqrt(d^2 * sum(p.sum*(1-p.sum)/(n-1))) # calculate standard error
-    if (p.se == 0 && x0 > -log10(10*max(dilutions))) { #If SE=0, set to one replicate negative at the x0 dilution for SE calculation
-      p.min <- 1/n[1]
-      p.se <- sqrt(d^2 * sum(p.min*(1-p.min)/(n[1]-1)))
-    }
-
-    #Calculate SD50
-    sd50_res[i,]$log10_SD50 <- (x0 - d/2 + d*sum(p.sum))
-
-    #Calculate standard error and confidence intervals
-    sd50_res[i,]$SE <- p.se
-    sd50_res[i,]$CI95_upper <- sd50_res[i,]$log10_SD50 + 1.96*sd50_res[i,]$SE
-    sd50_res[i,]$CI95_lower <- sd50_res[i,]$log10_SD50 - 1.96*sd50_res[i,]$SE
-
-    #Calculate limits of detection
-    sd50_res[i,]$LOD_min <- (-log10((10^d)*max(dilutions)) - d/2 + d*(1/nrow(tmp[tmp$Dilution == max(dilutions),])))
-    sd50_res[i,]$LOD_max <- (-log10(min(dilutions)) + d/2)
-
-    #Determine if result is negative, or if RT-QuIC assay was saturated
-    if (sd50_res[i,]$log10_SD50 < sd50_res[i,]$LOD_min) {
-      sd50_res[i,]$Result <- "negative"
-    } else  if (sd50_res[i,]$log10_SD50 == sd50_res[i,]$LOD_max) {
-      sd50_res[i,]$Result <- "saturated"
-    }
-
-    rm(tmp)
+    return(p_vec)
   }
-  return(sd50_res)
+  
+  # ---- Main function for calculations ----
+  get_sd50 <- function(lag_data, sample_id) {
+    tmp <- lag_data[lag_data$Sample == sample_id, ]
+    tmp <- tmp[order(tmp$Dilution, decreasing = TRUE), ]
+    
+    dilutions <- unique(tmp$Dilution)
+    d_vals <- round(diff(-log10(dilutions)), 3)
+    
+    if (length(unique(d_vals)) != 1) {
+      stop(paste("Dilutions for sample", sample_id, "are not evenly spaced in log10 scale."))
+    }
+    
+    d <- unique(d_vals)
+    
+    # Find highest dilution with all positive wells
+    x0 <- 0
+    for (dil in dilutions) {
+      pos_count <- sum(tmp$Dilution == dil & tmp$lag_time > 0)
+      total_count <- sum(tmp$Dilution == dil)
+      if (pos_count == total_count && total_count > 0) {
+        x0 <- -log10(dil)
+        break
+      }
+    }
+    
+    if (x0 == 0) {
+      x0 <- -log10(10 * max(dilutions))  # Below LOD
+    }
+    
+    # Filter for positivity in first dilution
+    first_dil <- max(tmp$Dilution)
+    if (sum(tmp[tmp$Dilution == first_dil, "lag_time"] > 0) < positivity_threshold * sum(tmp$Dilution == first_dil)) {
+      tmp$lag_time <- 0  # Remove "positives"
+    }
+    
+    # Compute SD50 using Spearman-Kärber
+    included_dilutions <- dilutions[dilutions <= 1.01 * 10^(-x0)]
+    p_vector <- numeric()
+    n_vector <- numeric()
+    
+    for (dil in included_dilutions) {
+      wells <- tmp[tmp$Dilution == dil, ]
+      p_vector <- c(p_vector, mean(wells$lag_time > 0))
+      n_vector <- c(n_vector, nrow(wells))
+    }
+    
+    if (length(p_vector) > 1) {
+      p_vector <- smooth_monotonic(p_vector)
+    }
+    
+    # If SE = 0, assume 1 well negative at x0 dilution
+    p_se <- sqrt(d^2 * sum(p_vector * (1 - p_vector) / (n_vector - 1)))
+    if (p_se == 0 && x0 > -log10(10 * max(dilutions))) {
+      p_min <- 1 / n_vector[1]
+      p_se <- sqrt(d^2 * sum(p_min * (1 - p_min) / (n_vector[1] - 1)))
+    }
+    
+    # Final SD50 calculations
+    log10_sd50 <- x0 - d / 2 + d * sum(p_vector)
+    
+    sd50_res <- data.frame(Sample = sample_id,
+                           log10_SD50 = log10_sd50,
+                           SE = p_se,
+                           CI95_upper = log10_sd50 + 1.96 * p_se,
+                           CI95_lower = log10_sd50 - 1.96 * p_se,
+                           LOD_min = -log10(10 * max(dilutions)) - d / 2 + d * (1 / n_vector[1]),
+                           LOD_max = -log10(min(dilutions)) + d / 2)
+    
+    # Determine result status
+    sd50_res <- dplyr::mutate(sd50_res,
+                              Result = dplyr::case_when(log10_SD50 < LOD_min ~ "negative",
+                                                        log10_sd50 > LOD_max ~ "saturated",
+                                                        .default = "positive"))
+    return(sd50_res)
+  }
+  
+  combined_output <- purrr::map_dfr(unique(lag_data$Sample), ~ get_sd50(lag_data, .x))
+  
+  # Merge with meta-data
+  meta_data <- dplyr::distinct(lag_data[,setdiff(names(lag_data), c("Well", "lag_time", "Dilution"))])
+  combined_output <- dplyr::left_join(combined_output,
+                                      meta_data,
+                                      by = "Sample")
+  
+  return(combined_output)
 }
 
 #' calculate AUC values from Lag phase data

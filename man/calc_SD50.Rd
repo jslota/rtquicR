@@ -7,14 +7,14 @@
 calc_SD50(lag_data, starting_dilution = NULL, positivity_threshold = 0.75)
 }
 \arguments{
-\item{lag_data}{Output of calc_lag_phase() function}
+\item{lag_data}{Output of \code{calc_lag_phase()} with columns: Well, lag_time, Sample, Dilution}
 
-\item{starting_dilution}{The numeric value for the starting dilution used to calculate SD50. Useful if there is inhibition at higher sample concentrations.}
+\item{starting_dilution}{Optional numeric. Use only dilutions ≤ this value (e.g., for inhibition at high concentration)}
 
-\item{positivity_threshold}{The proportion of positive wells in the first dilution must be above this threshold for a sample to be considered "positive". 0.75 by default}
+\item{positivity_threshold}{Proportion of positive wells required in highest dilution. Default = 0.75}
 }
 \value{
-Outputs SD50 values, standard error, and 95\% confidence interval for each sample with matching sample info. Samples deemed to be "negative" are returned with an SD50 value equivalent to 1 dilution lower than the minimum dilution.
+Data frame with SD50 metrics and result interpretation
 }
 \description{
 Calculates SD50 for each sample from the lag phase data. 3/4 wells for the highest dilution must be
