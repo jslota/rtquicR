@@ -10,7 +10,7 @@ Authors@R:
 Author: Jessy Slota [aut, cre]
 Maintainer: Jessy Slota <jessy.slota@phac-aspc.gc.ca>
 Depends: R (>= 3.1.0)
-Imports: RColorBrewer, dplyr, ggplot2, pracma, readxl, reshape2, stats, signal
+Imports: RColorBrewer, dplyr, ggplot2, pracma, readxl, reshape2, stats, signal, purrr, stringr
 Description: Analyzing RT-QuIC data is often tedious and time-consuming, especially for large amounts of data. The rtquicR R package simplifies this process by automating the analysis of multiple 96-well plates of RT-QuIC data, making the analysis faster and more consistent. To use rtquicR, users provide RT-QuIC data in a standardized raw input file format. A pre-made script is included, which harnesses rtquicR’s capabilities to analyze each input file. This script produces common output data types, such as normalized fluorescence, lag-phase, and SD50 values, and compiles them into files for further statistical analysis and plotting. Additionally, standardized signal curve and lag-phase plots are generated for each individual RT-QuIC plate, facilitating quality control checks.
 License: GPL (>= 3)
 Encoding: UTF-8
