@@ -348,7 +348,7 @@ plot_lag_phase <- function(lag_data) {
 
   ggplot2::ggplot(rev(lag_data), aes(x=as.factor(Dilution), y=lag_time, color=as.factor(Dilution))) +
     geom_boxplot(color = "black", outlier.color = "white") +
-    geom_jitter(size = 2, width = 0.15) +
+    geom_jitter(size = 2, width = 0.15, height = 0) +
     scale_color_manual(values = cols) +
     xlab("Dilution") +
     ylab("(lag phase)-1") +
@@ -557,4 +557,5 @@ calc_AUC_sig <- function(sig_data) {
 
   return(AUC_res)
 }
+
 
