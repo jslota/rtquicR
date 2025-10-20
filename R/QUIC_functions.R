@@ -419,6 +419,12 @@ calc_SD50 <- function(lag_data, starting_dilution = NULL, positivity_threshold =
       stop(paste("Dilutions for sample", sample_id, "are not evenly spaced in log10 scale."))
     }
     
+    # Filter for positivity in first dilution
+    first_dil <- max(tmp$Dilution)
+    if (sum(tmp[tmp$Dilution == first_dil, "lag_time"] > 0) < positivity_threshold * sum(tmp$Dilution == first_dil)) {
+      tmp$lag_time <- 0  # Remove "positives"
+    }
+    
     d <- unique(d_vals)
     
     # Find highest dilution with all positive wells
@@ -434,12 +440,6 @@ calc_SD50 <- function(lag_data, starting_dilution = NULL, positivity_threshold =
     
     if (x0 == 0) {
       x0 <- -log10(10 * max(dilutions))  # Below LOD
-    }
-    
-    # Filter for positivity in first dilution
-    first_dil <- max(tmp$Dilution)
-    if (sum(tmp[tmp$Dilution == first_dil, "lag_time"] > 0) < positivity_threshold * sum(tmp$Dilution == first_dil)) {
-      tmp$lag_time <- 0  # Remove "positives"
     }
     
     # Compute SD50 using Spearman-Kärber
@@ -557,3 +557,4 @@ calc_AUC_sig <- function(sig_data) {
 
   return(AUC_res)
 }
+
